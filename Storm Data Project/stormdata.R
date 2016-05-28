@@ -1,0 +1,72 @@
+setwd("/Users/sandraezidiegwu/Documents/Data Science/5_REPDATA/Storm Data Project/")
+#download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", destfile = "StormData", method = "curl")
+storm.data <- read.table("StormData", header = TRUE, sep = ",")
+library(dplyr)
+library(ggplot2)
+str(storm.data)
+
+cut.data <- select(storm.data, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
+head(cut.data)
+
+cut.data[cut.data$PROPDMG == 0,]$PROPDMGEXP <- "K"
+cut.data[cut.data$CROPDMG == 0,]$CROPDMGEXP <- "K"
+cut.data$PROPDMGEXP <- factor(cut.data$PROPDMGEXP, levels = c("K", "M", "B"))
+cut.data$CROPDMGEXP <- factor(cut.data$CROPDMGEXP, levels = c("K", "M", "B"))
+
+cut.data$PROPEXP[cut.data$PROPDMGEXP == "K"] <- 1000
+cut.data$CROPEXP[cut.data$CROPDMGEXP == "K"] <- 1000
+cut.data$PROPEXP[cut.data$PROPDMGEXP == "M"] <- 1e+06
+cut.data$CROPEXP[cut.data$CROPDMGEXP == "M"] <- 1e+06
+cut.data$PROPEXP[cut.data$PROPDMGEXP == "B"] <- 1e+09
+cut.data$CROPEXP[cut.data$CROPDMGEXP == "B"] <- 1e+09
+
+cut.data <- mutate(cut.data, PROP.DMG = PROPDMG*PROPEXP)
+cut.data <- mutate(cut.data, CROP.DMG = CROPDMG*CROPEXP)
+cut.data <- mutate(cut.data, TOTDMG = PROP.DMG + CROP.DMG)
+
+ref.data <- select(cut.data, EVTYPE, FATALITIES, INJURIES, TOTDMG)
+
+ref.data$EVTYPE <- toupper(ref.data$EVTYPE)
+ref.data$EVTYPE <- factor(ref.data$EVTYPE)
+
+ref.data$EVTYPE <- gsub("^\\s+|\\s+$", "", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("TSTMW", "THUNDERSTORM WIND", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("TSTM", "THUNDERSTORM", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDERSTORMW", "THUNDERSTORM WIND", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDERSTORMS", "THUNDERSTORM WIND", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDERSNOW$", "THUNDERSTORM WIND", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDERSNOW SHOWER", "THUNDERSTORM WIND", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDEERSTORM", "THUNDERSTORM", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDERESTORM", "THUNDERSTORM", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUDERSTORM", "THUNDERSTORM", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDERSTORM$", "THUNDERSTORM WIND", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNERSTORM", "THUNDERSTORM", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDERSTORMW", "THUNDERSTORM WIND", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("TUNDERSTORM", "THUNDERSTORM", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("THUNDERTSORM", "THUNDERSTORM", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("^THUNDERSTORM WIND$", "THUNDERSTORM WINDS", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("^HEAT$", "EXCESSIVE HEAT", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("FLOOD/$", "FLASH FLOODS", ref.data$EVTYPE)
+ref.data$EVTYPE <- gsub("^FLASH FLOOD$", "FLASH FLOODS", ref.data$EVTYPE)
+
+ref.data[ref.data == "?"] <- NA
+ref.data <- na.omit(ref.data)
+
+fatal.type <- aggregate(ref.data$FATALITIES, by = list(ref.data$EVTYPE), FUN = sum)
+names(fatal.type) <- c("EVENT TYPE", "TOTAL FATALITY")
+top.fatal <- fatal.type[order(-fatal.type$`TOTAL FATALITY`),][1:10,]
+
+injury.type <- aggregate(ref.data$INJURIES, by = list(ref.data$EVTYPE), FUN = sum)
+names(injury.type) <- c("EVENT TYPE", "TOTAL INJURY")
+top.injury <- injury.type[order(-injury.type$`TOTAL INJURY`),][1:10,]
+
+event.dmg <- aggregate(ref.data$TOTDMG, by = list(ref.data$EVTYPE), FUN = sum)
+names(event.dmg) <- c("EVENT TYPE", "TOTAL DAMAGE")
+top.dmg <- event.dmg[order(-event.dmg$`TOTAL DAMAGE`),][1:10,]
+
+par(mfrow = c(1,2), mar = c(12, 4, 3, 2), mgp = c(3,1,0), cex = 0.8)
+barplot(top.fatal$`TOTAL FATALITY`, names.arg = top.fatal$`EVENT TYPE`, las = 3, col = 'magenta', main = "Highest Fatality by Events", ylab = "# of Fatalities")
+barplot(top.injury$`TOTAL INJURY`, names.arg = top.injury$`EVENT TYPE`, las = 3, col = 'red', main = "Highest Injury by Events", ylab = "# of Injuries")
+dev.new()
+par(mfrow = c(1,1), mar = c(12, 4, 3, 2), mgp = c(3,1,0), cex = 0.8)
+barplot(top.dmg$`TOTAL DAMAGE`/(1e+9), names.arg = top.dmg$`EVENT TYPE`, las = 3, col = 'green', main = "Highest Economic Damage by Events", ylab = "Damage Cost ($ billions)")
